@@ -1,56 +1,47 @@
 #!/usr/bin/python3
-"""
-Fabric script methods:
-    do_pack: packs web_static/ files into .tgz archive
-    do_deploy: deploys archive to webservers
-    deploy: do_packs && do_deploys
-Usage:
-    fab -f 3-deploy_web_static.py deploy -i my_ssh_private_key -u ubuntu
-"""
-from fabric.api import local, env, put, run
+from fabric.api import local, cd, put, env, run, sudo
 from datetime import datetime
-import os.path
-env.hosts = ['3.238.230.209', '18.205.104.232']
+from os import path
+
+env.hosts = ['3.239.74.200', '3.238.233.55']
 
 
 def do_pack():
-    """Function to compress files"""
-    local("mkdir -p versions")
-    result = local("tar -czvf versions/web_static_{}.tgz web_static"
-                   .format(datetime.strftime(datetime.now(), "%Y%m%d%H%M%S")),
-                   capture=True)
-    if result.failed:
+    """generates a tgz archive"""
+    try:
+        date = datetime.now().strftime("%Y%m%d%H%M%S")
+        if isdir("versions") is False:
+            local("mkdir versions")
+        file_name = "versions/web_static_{}.tgz".format(date)
+        local("tar -cvzf {} web_static".format(file_name))
+        return file_name
+    except:
         return None
-    return result
-
 
 def do_deploy(archive_path):
-    """
-    Deploy archive to web server
-    """
-    if os.path.isfile(archive_path) is False:
+    """distributes an archive to web servers"""
+    archive_withoutext = path.splitext(path.basename(archive_path))[0]
+    if (not path.exists(archive_path)):
         return False
-    try:
-        filename = archive_path.split("/")[-1]
-        no_ext = filename.split(".")[0]
-        path_no_ext = "/data/web_static/releases/{}/".format(no_ext)
-        symlink = "/data/web_static/current"
-        put(archive_path, "/tmp/")
-        run("mkdir -p {}".format(path_no_ext))
-        run("tar -xzf /tmp/{} -C {}".format(filename, path_no_ext))
-        run("rm /tmp/{}".format(filename))
-        run("mv {}web_static/* {}".format(path_no_ext, path_no_ext))
-        run("rm -rf {}web_static".format(path_no_ext))
-        run("rm -rf {}".format(symlink))
-        run("ln -s {} {}".format(path_no_ext, symlink))
-        return True
-    except:
-        return False
+    with cd('/tmp'):
+        upload = put(archive_path, archive_withoutext + '.tgz')
+    sudo('mkdir -p /data/web_static/releases/{}'.format(archive_withoutext))
+    sudo('tar -xzf /tmp/{0}.tgz -C /data/web_static/releases/{0}/'.format(
+         archive_withoutext))
+    sudo('rm /tmp/{}.tgz'.format(archive_withoutext))
+    sudo('mv /data/web_static/releases/{0}/web_static/* \
+    /data/web_static/releases/{0}/'.format(archive_withoutext))
+    sudo('rm -rf /data/web_static/releases/{}/web_static'.format(
+        archive_withoutext))
+    sudo('rm -rf /data/web_static/current')
+    sudo('ln -s /data/web_static/releases/{} /data/web_static/current'.format(
+        archive_withoutext))
+    return upload.succeeded
 
 
 def deploy():
-    archive_path = do_pack()
-    if archive_path is None:
+    """created and destributes an archive to web server"""
+    fpath = do_pack()
+    if fpath is None:
         return False
-    success = do_deploy(archive_path)
-    return success
+    return do_deploy(fpath)

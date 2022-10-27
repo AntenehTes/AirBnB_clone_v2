@@ -17,17 +17,11 @@ class FileStorage:
         '''
             Return the dictionary
         '''
-        new_dict = {}
-        if cls is None:
-            return self.__objects
-
-        if cls != "":
-            for k, v in self.__objects.items():
-                if cls == k.split(".")[0]:
-                    new_dict[k] = v
-            return new_dict
-        else:
-            return self.__objects
+        objs = FileStorage.__objects
+        if cls is not None:
+            objs = {k: v for k, v in FileStorage.__objects.items()
+                    if v.__class__ is cls}
+        return objs
 
     def new(self, obj):
         '''
@@ -66,15 +60,15 @@ class FileStorage:
 
     def delete(self, obj=None):
         '''
-        Deletes an obj
+        delete obj from __objects
         '''
-        if obj is not None:
-            key = str(obj.__class__.__name__) + "." + str(obj.id)
-            FileStorage.__objects.pop(key, None)
-            self.save()
+        if obj:
+            k = obj.__class__.__name__+'.'+obj.id
+            if k in self.__objects:
+                del self.__objects[k]
 
     def close(self):
         '''
-        Deserialize JSON file to objects
+        deserialize JSON file to object
         '''
         self.reload()
